@@ -137,7 +137,7 @@ class ILM_Link_Inserter {
             }
 
             // Only process linkable blocks
-            if (in_array($block['blockName'], array('core/paragraph', 'core/list', 'core/list-item'))) {
+            if (in_array($block['blockName'], array('core/paragraph', 'core/list', 'core/list-item', 'core/heading'))) {
                 if (!empty($block['innerHTML'])) {
                     $result = $this->insert_link_in_html_once(
                         $block['innerHTML'],
@@ -147,14 +147,22 @@ class ILM_Link_Inserter {
                         $current_occurrence
                     );
 
-                    if ($result['found']) {
+                    if ($result['inserted']) {
+                        // Update both innerHTML and innerContent
                         $block['innerHTML'] = $result['html'];
-                        $block['innerContent'][0] = $result['html'];
 
-                        if ($result['inserted']) {
-                            $link_inserted = true;
-                            break;
+                        // Update innerContent array - it usually has one element for simple blocks
+                        if (isset($block['innerContent']) && is_array($block['innerContent'])) {
+                            for ($i = 0; $i < count($block['innerContent']); $i++) {
+                                if (is_string($block['innerContent'][$i])) {
+                                    $block['innerContent'][$i] = $result['html'];
+                                    break;
+                                }
+                            }
                         }
+
+                        $link_inserted = true;
+                        break;
                     }
                 }
             }
@@ -228,31 +236,83 @@ class ILM_Link_Inserter {
             );
         }
 
-        // Pattern to find the text, avoiding existing links, headings, code
-        $pattern = preg_quote($anchor_text, '/');
-        $pattern = '/(?<!<a[^>]*>)(?<!<h[1-6][^>]*>)(?<!<code[^>]*>)\b(' . $pattern . ')\b(?![^<]*<\/a>)(?![^<]*<\/h[1-6]>)(?![^<]*<\/code>)/iu';
-
         $found = false;
         $inserted = false;
 
-        $updated_html = preg_replace_callback($pattern, function($matches) use ($target_url, $target_occurrence, &$current_occurrence, &$found, &$inserted) {
+        // Get case sensitivity setting
+        $case_sensitive = ILM_Database::get_setting('case_sensitive', false);
+
+        // Build pattern for word boundary matching
+        $pattern = '/\b(' . preg_quote($anchor_text, '/') . ')\b/u';
+        if (!$case_sensitive) {
+            $pattern .= 'i';
+        }
+
+        // Track our position in the string
+        $offset = 0;
+        $updated_html = $html;
+
+        while (preg_match($pattern, $updated_html, $matches, PREG_OFFSET_CAPTURE, $offset)) {
+            $match_text = $matches[1][0];
+            $match_pos = $matches[1][1];
+
+            // Check if this match is inside an existing link, script, or style tag
+            if ($this->is_inside_tag($updated_html, $match_pos, array('a', 'script', 'style', 'code'))) {
+                // Skip this match, continue searching after it
+                $offset = $match_pos + strlen($match_text);
+                continue;
+            }
+
             $found = true;
 
+            // Check if this is the occurrence we want
             if ($current_occurrence === $target_occurrence) {
+                // Insert the link
+                $link_html = '<a href="' . esc_url($target_url) . '">' . $match_text . '</a>';
+
+                $before = substr($updated_html, 0, $match_pos);
+                $after = substr($updated_html, $match_pos + strlen($match_text));
+
+                $updated_html = $before . $link_html . $after;
                 $inserted = true;
-                $current_occurrence++;
-                return '<a href="' . esc_url($target_url) . '">' . $matches[1] . '</a>';
+                break;
             }
 
             $current_occurrence++;
-            return $matches[0];
-        }, $html, -1, $count);
+            $offset = $match_pos + strlen($match_text);
+        }
 
         return array(
             'found' => $found,
             'inserted' => $inserted,
             'html' => $updated_html
         );
+    }
+
+    /**
+     * Check if a position in HTML is inside a specific tag
+     *
+     * @param string $html HTML content
+     * @param int $position Character position
+     * @param array $tags Tags to check for
+     * @return bool True if inside one of the tags
+     */
+    private function is_inside_tag($html, $position, $tags) {
+        // Get the substring before the position
+        $before = substr($html, 0, $position);
+
+        foreach ($tags as $tag) {
+            // Count opening and closing tags before this position
+            $open_count = preg_match_all('/<' . preg_quote($tag, '/') . '(\s|>)/i', $before);
+            $close_count = preg_match_all('/<\/' . preg_quote($tag, '/') . '>/i', $before);
+
+            // If there are more opening tags than closing tags, we're inside the tag
+            if ($open_count > $close_count) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
