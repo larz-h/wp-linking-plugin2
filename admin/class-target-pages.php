@@ -26,6 +26,8 @@ class ILM_Target_Pages {
         add_action('admin_menu', array($this, 'add_menu_page'));
         add_action('admin_post_ilm_save_target', array($this, 'save_target'));
         add_action('admin_post_ilm_delete_target', array($this, 'delete_target'));
+        add_action('admin_post_ilm_import_csv', array($this, 'import_csv'));
+        add_action('admin_post_ilm_export_csv', array($this, 'export_csv'));
     }
 
     /**
@@ -119,6 +121,14 @@ class ILM_Target_Pages {
                         </td>
                     </tr>
                     <tr>
+                        <th><label for="post_title">Post Title</label></th>
+                        <td>
+                            <input type="text" id="post_title" name="post_title" class="regular-text"
+                                placeholder="Optional - helps identify the target">
+                            <p class="description">Optional: The title of the page/post (for reference)</p>
+                        </td>
+                    </tr>
+                    <tr>
                         <th><label for="primary_anchor">Primary Anchor Text *</label></th>
                         <td>
                             <input type="text" id="primary_anchor" name="primary_anchor" class="regular-text" required
@@ -158,6 +168,49 @@ class ILM_Target_Pages {
                 </p>
             </form>
         </div>
+
+        <div class="ilm-card">
+            <h2>Bulk Import/Export</h2>
+            <p class="description">Import or export target pages using CSV format: <code>url | post title | primary anchor | variation1, variation2, variation3</code></p>
+
+            <div style="display: flex; gap: 20px; margin-top: 20px;">
+                <div style="flex: 1;">
+                    <h3>Import from CSV</h3>
+                    <form method="post" action="<?php echo admin_url('admin-post.php'); ?>" enctype="multipart/form-data">
+                        <input type="hidden" name="action" value="ilm_import_csv">
+                        <?php wp_nonce_field('ilm_import_csv', 'ilm_csv_nonce'); ?>
+
+                        <p>
+                            <input type="file" name="csv_file" accept=".csv,.txt" required>
+                        </p>
+                        <p class="description">Upload a pipe-delimited (|) CSV file with your targets.</p>
+                        <p class="submit" style="margin-top: 10px;">
+                            <input type="submit" class="button button-secondary" value="Import CSV">
+                        </p>
+                    </form>
+                </div>
+
+                <div style="flex: 1;">
+                    <h3>Export to CSV</h3>
+                    <p class="description">Download all existing targets as a CSV file.</p>
+                    <p class="submit" style="margin-top: 10px;">
+                        <a href="<?php echo wp_nonce_url(admin_url('admin-post.php?action=ilm_export_csv'), 'ilm_export_csv'); ?>"
+                            class="button button-secondary">Export CSV</a>
+                    </p>
+                </div>
+            </div>
+
+            <div style="margin-top: 20px; padding: 15px; background: #f9f9f9; border-left: 4px solid #2271b1;">
+                <h4 style="margin-top: 0;">CSV Format Example:</h4>
+                <code>
+                    /blog/best-running-shoes | Best Running Shoes Review | best running shoes | top running shoes, running shoes for men<br>
+                    /blog/marathon-training | Marathon Training Guide | marathon training | marathon training plan, how to train for marathon
+                </code>
+                <p style="margin-bottom: 0; margin-top: 10px; font-size: 13px;">
+                    <strong>Tip:</strong> Export your existing targets, use AI to add more variations, then re-import!
+                </p>
+            </div>
+        </div>
         <?php
     }
 
@@ -186,6 +239,13 @@ class ILM_Target_Pages {
                         <td>
                             <input type="text" id="url" name="url" class="regular-text" required
                                 value="<?php echo esc_attr($target['url']); ?>">
+                        </td>
+                    </tr>
+                    <tr>
+                        <th><label for="post_title">Post Title</label></th>
+                        <td>
+                            <input type="text" id="post_title" name="post_title" class="regular-text"
+                                value="<?php echo esc_attr($target['post_title']); ?>">
                         </td>
                     </tr>
                     <tr>
@@ -240,6 +300,7 @@ class ILM_Target_Pages {
                 <thead>
                     <tr>
                         <th>URL</th>
+                        <th>Post Title</th>
                         <th>Primary Anchor</th>
                         <th>Variations</th>
                         <th>Priority</th>
@@ -251,7 +312,7 @@ class ILM_Target_Pages {
                 <tbody>
                     <?php if (empty($targets)): ?>
                         <tr>
-                            <td colspan="7" style="text-align: center; padding: 40px;">
+                            <td colspan="8" style="text-align: center; padding: 40px;">
                                 No target pages yet. Add your first target above!
                             </td>
                         </tr>
@@ -264,6 +325,13 @@ class ILM_Target_Pages {
                             <tr>
                                 <td>
                                     <strong><?php echo esc_html($target['url']); ?></strong>
+                                </td>
+                                <td>
+                                    <?php if (!empty($target['post_title'])): ?>
+                                        <em><?php echo esc_html($target['post_title']); ?></em>
+                                    <?php else: ?>
+                                        <span style="color: #999;">—</span>
+                                    <?php endif; ?>
                                 </td>
                                 <td><?php echo esc_html($target['primary_anchor']); ?></td>
                                 <td><?php echo esc_html($variation_count); ?> variations</td>
@@ -321,6 +389,7 @@ class ILM_Target_Pages {
         }
 
         $url = sanitize_text_field($_POST['url']);
+        $post_title = isset($_POST['post_title']) ? sanitize_text_field($_POST['post_title']) : '';
         $primary_anchor = sanitize_text_field($_POST['primary_anchor']);
         $anchor_variations = sanitize_textarea_field($_POST['anchor_variations']);
         $priority = isset($_POST['priority']) ? intval($_POST['priority']) : 5;
@@ -331,6 +400,7 @@ class ILM_Target_Pages {
 
         $data = array(
             'url' => $url,
+            'post_title' => $post_title,
             'primary_anchor' => $primary_anchor,
             'anchor_variations' => $variations,
             'priority' => $priority,
@@ -373,6 +443,61 @@ class ILM_Target_Pages {
     }
 
     /**
+     * Import CSV
+     */
+    public function import_csv() {
+        if (!isset($_POST['ilm_csv_nonce']) || !wp_verify_nonce($_POST['ilm_csv_nonce'], 'ilm_import_csv')) {
+            wp_die('Security check failed');
+        }
+
+        if (!current_user_can('manage_options')) {
+            wp_die('Insufficient permissions');
+        }
+
+        if (empty($_FILES['csv_file']['tmp_name'])) {
+            wp_redirect(admin_url('admin.php?page=internal-linking-manager&error=no_file'));
+            exit;
+        }
+
+        $csv_content = file_get_contents($_FILES['csv_file']['tmp_name']);
+
+        $result = $this->db->import_targets_from_csv($csv_content);
+
+        $message = sprintf(
+            'csv_imported&imported=%d&skipped=%d',
+            $result['imported'],
+            $result['skipped']
+        );
+
+        wp_redirect(admin_url('admin.php?page=internal-linking-manager&message=' . $message));
+        exit;
+    }
+
+    /**
+     * Export CSV
+     */
+    public function export_csv() {
+        if (!isset($_GET['_wpnonce']) || !wp_verify_nonce($_GET['_wpnonce'], 'ilm_export_csv')) {
+            wp_die('Security check failed');
+        }
+
+        if (!current_user_can('manage_options')) {
+            wp_die('Insufficient permissions');
+        }
+
+        $csv_content = $this->db->export_targets_to_csv();
+
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="internal-linking-targets-' . date('Y-m-d') . '.csv"');
+        header('Pragma: no-cache');
+        header('Expires: 0');
+
+        echo "\xEF\xBB\xBF"; // UTF-8 BOM
+        echo $csv_content;
+        exit;
+    }
+
+    /**
      * Get message text
      */
     private function get_message($code) {
@@ -382,6 +507,13 @@ class ILM_Target_Pages {
             'deleted' => 'Target page deleted successfully.',
             'error' => 'An error occurred. Please try again.'
         );
+
+        // Handle CSV import message
+        if (strpos($code, 'csv_imported') === 0) {
+            $imported = isset($_GET['imported']) ? intval($_GET['imported']) : 0;
+            $skipped = isset($_GET['skipped']) ? intval($_GET['skipped']) : 0;
+            return sprintf('CSV imported: %d targets added, %d skipped.', $imported, $skipped);
+        }
 
         return isset($messages[$code]) ? $messages[$code] : '';
     }

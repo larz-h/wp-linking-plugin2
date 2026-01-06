@@ -245,6 +245,7 @@ class ILM_REST_API {
 
         $data = array(
             'url' => sanitize_text_field($request->get_param('url')),
+            'post_title' => sanitize_text_field($request->get_param('post_title')),
             'primary_anchor' => sanitize_text_field($request->get_param('primary_anchor')),
             'anchor_variations' => $request->get_param('anchor_variations'),
             'cluster_id' => $request->get_param('cluster_id'),
@@ -275,6 +276,9 @@ class ILM_REST_API {
         $data = array();
         if ($request->has_param('url')) {
             $data['url'] = sanitize_text_field($request->get_param('url'));
+        }
+        if ($request->has_param('post_title')) {
+            $data['post_title'] = sanitize_text_field($request->get_param('post_title'));
         }
         if ($request->has_param('primary_anchor')) {
             $data['primary_anchor'] = sanitize_text_field($request->get_param('primary_anchor'));

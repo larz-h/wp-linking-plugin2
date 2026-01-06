@@ -47,6 +47,7 @@ class ILM_Database {
         $sql_targets = "CREATE TABLE IF NOT EXISTS $targets_table (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             url varchar(500) NOT NULL,
+            post_title varchar(255) DEFAULT NULL,
             primary_anchor varchar(255) NOT NULL,
             anchor_variations text,
             cluster_id bigint(20) unsigned DEFAULT NULL,
@@ -168,6 +169,7 @@ class ILM_Database {
     public function add_target($data) {
         $defaults = array(
             'url' => '',
+            'post_title' => '',
             'primary_anchor' => '',
             'anchor_variations' => array(),
             'cluster_id' => null,
@@ -190,13 +192,14 @@ class ILM_Database {
             $this->targets_table,
             array(
                 'url' => $data['url'],
+                'post_title' => $data['post_title'],
                 'primary_anchor' => $data['primary_anchor'],
                 'anchor_variations' => $variations,
                 'cluster_id' => $data['cluster_id'],
                 'priority' => $data['priority'],
                 'link_type' => $data['link_type']
             ),
-            array('%s', '%s', '%s', '%d', '%d', '%s')
+            array('%s', '%s', '%s', '%s', '%d', '%d', '%s')
         );
 
         return $result ? $this->wpdb->insert_id : false;
@@ -380,6 +383,121 @@ class ILM_Database {
         }
 
         return array_filter(array_map('trim', explode("\n", $variations)));
+    }
+
+    /**
+     * Import targets from CSV
+     *
+     * @param string $csv_content CSV content
+     * @return array Result with counts
+     */
+    public function import_targets_from_csv($csv_content) {
+        $imported = 0;
+        $skipped = 0;
+        $errors = array();
+
+        // Parse CSV
+        $lines = array_map('trim', explode("\n", $csv_content));
+
+        foreach ($lines as $line_num => $line) {
+            if (empty($line)) {
+                continue;
+            }
+
+            // Parse CSV line (handle quoted fields)
+            $fields = str_getcsv($line, '|');
+
+            if (count($fields) < 3) {
+                $errors[] = "Line " . ($line_num + 1) . ": Not enough columns";
+                $skipped++;
+                continue;
+            }
+
+            $url = trim($fields[0]);
+            $post_title = isset($fields[1]) ? trim($fields[1]) : '';
+            $primary_anchor = isset($fields[2]) ? trim($fields[2]) : '';
+            $variations_str = isset($fields[3]) ? trim($fields[3]) : '';
+
+            // Parse variations (comma-separated)
+            $variations = array();
+            if (!empty($variations_str)) {
+                $variations = array_filter(array_map('trim', explode(',', $variations_str)));
+            }
+
+            // Validate required fields
+            if (empty($url) || empty($primary_anchor)) {
+                $errors[] = "Line " . ($line_num + 1) . ": Missing URL or primary anchor";
+                $skipped++;
+                continue;
+            }
+
+            // Add target
+            $result = $this->add_target(array(
+                'url' => $url,
+                'post_title' => $post_title,
+                'primary_anchor' => $primary_anchor,
+                'anchor_variations' => $variations,
+                'priority' => 5,
+                'link_type' => 'internal'
+            ));
+
+            if ($result) {
+                $imported++;
+            } else {
+                $errors[] = "Line " . ($line_num + 1) . ": Failed to import";
+                $skipped++;
+            }
+        }
+
+        return array(
+            'imported' => $imported,
+            'skipped' => $skipped,
+            'errors' => $errors
+        );
+    }
+
+    /**
+     * Export targets to CSV
+     *
+     * @return string CSV content
+     */
+    public function export_targets_to_csv() {
+        $targets = $this->get_targets();
+
+        $csv_lines = array();
+
+        foreach ($targets as $target) {
+            $variations = is_array($target['anchor_variations'])
+                ? $target['anchor_variations']
+                : $this->parse_variations($target['anchor_variations']);
+
+            $variations_str = implode(', ', $variations);
+
+            // Build CSV line with pipe delimiter
+            $csv_lines[] = sprintf(
+                '%s|%s|%s|%s',
+                $this->escape_csv_field($target['url']),
+                $this->escape_csv_field($target['post_title']),
+                $this->escape_csv_field($target['primary_anchor']),
+                $this->escape_csv_field($variations_str)
+            );
+        }
+
+        return implode("\n", $csv_lines);
+    }
+
+    /**
+     * Escape CSV field
+     *
+     * @param string $field Field value
+     * @return string Escaped field
+     */
+    private function escape_csv_field($field) {
+        // If field contains pipe, comma, or newline, wrap in quotes
+        if (strpos($field, '|') !== false || strpos($field, ',') !== false || strpos($field, "\n") !== false) {
+            return '"' . str_replace('"', '""', $field) . '"';
+        }
+        return $field;
     }
 
     /**
