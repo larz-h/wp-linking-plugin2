@@ -400,7 +400,8 @@ class ILM_Database {
         $lines = array_map('trim', explode("\n", $csv_content));
 
         foreach ($lines as $line_num => $line) {
-            if (empty($line)) {
+            // Skip empty lines and comment lines
+            if (empty($line) || substr(trim($line), 0, 1) === '#') {
                 continue;
             }
 
@@ -466,21 +467,29 @@ class ILM_Database {
 
         $csv_lines = array();
 
-        foreach ($targets as $target) {
-            $variations = is_array($target['anchor_variations'])
-                ? $target['anchor_variations']
-                : $this->parse_variations($target['anchor_variations']);
+        // Add header row for clarity
+        $csv_lines[] = '# URL | Post Title | Primary Anchor | Variations (comma-separated)';
 
-            $variations_str = implode(', ', $variations);
+        if (empty($targets)) {
+            // Add example row if no targets exist
+            $csv_lines[] = '/example-post|Example Post Title|example keyword|variation one, variation two, variation three';
+        } else {
+            foreach ($targets as $target) {
+                $variations = is_array($target['anchor_variations'])
+                    ? $target['anchor_variations']
+                    : $this->parse_variations($target['anchor_variations']);
 
-            // Build CSV line with pipe delimiter
-            $csv_lines[] = sprintf(
-                '%s|%s|%s|%s',
-                $this->escape_csv_field($target['url']),
-                $this->escape_csv_field($target['post_title']),
-                $this->escape_csv_field($target['primary_anchor']),
-                $this->escape_csv_field($variations_str)
-            );
+                $variations_str = implode(', ', $variations);
+
+                // Build CSV line with pipe delimiter
+                $csv_lines[] = sprintf(
+                    '%s|%s|%s|%s',
+                    $this->escape_csv_field($target['url']),
+                    $this->escape_csv_field($target['post_title']),
+                    $this->escape_csv_field($target['primary_anchor']),
+                    $this->escape_csv_field($variations_str)
+                );
+            }
         }
 
         return implode("\n", $csv_lines);

@@ -200,15 +200,37 @@ class ILM_Target_Pages {
                 </div>
             </div>
 
-            <div style="margin-top: 20px; padding: 15px; background: #f9f9f9; border-left: 4px solid #2271b1;">
-                <h4 style="margin-top: 0;">CSV Format Example:</h4>
-                <code>
-                    /blog/best-running-shoes | Best Running Shoes Review | best running shoes | top running shoes, running shoes for men<br>
-                    /blog/marathon-training | Marathon Training Guide | marathon training | marathon training plan, how to train for marathon
-                </code>
-                <p style="margin-bottom: 0; margin-top: 10px; font-size: 13px;">
-                    <strong>Tip:</strong> Export your existing targets, use AI to add more variations, then re-import!
+            <div style="margin-top: 20px; padding: 15px; background: #fff3cd; border-left: 4px solid #ffc107;">
+                <h4 style="margin-top: 0;">⚠️ Important: How to Create CSV Files</h4>
+                <ol style="margin: 10px 0; padding-left: 20px;">
+                    <li><strong>Do NOT use Excel or Google Sheets</strong> - They won't save pipes (|) correctly</li>
+                    <li><strong>Use a plain text editor</strong> like Notepad (Windows), TextEdit (Mac), or VS Code</li>
+                    <li>Each line = one target page</li>
+                    <li>Format: <code>URL|Title|Primary Anchor|variation1, variation2, variation3</code></li>
+                    <li>Save as <code>.txt</code> or <code>.csv</code> file</li>
+                </ol>
+                <p style="margin: 10px 0; font-size: 13px;">
+                    <strong>✓ Correct example:</strong><br>
+                    <code style="display: block; padding: 10px; background: white; margin-top: 5px;">
+                        /blog/running-shoes|Best Running Shoes|best running shoes|top running shoes, shoes for running<br>
+                        /blog/marathon-tips|Marathon Training|marathon training|how to train for marathon, marathon prep
+                    </code>
                 </p>
+            </div>
+
+            <div style="margin-top: 20px; padding: 15px; background: #f9f9f9; border-left: 4px solid #2271b1;">
+                <h4 style="margin-top: 0;">💡 Pro Tip: AI-Powered Workflow</h4>
+                <ol style="margin: 10px 0; padding-left: 20px; font-size: 13px;">
+                    <li>Export existing targets (or create list of URLs + titles in a text editor)</li>
+                    <li>Give to AI (ChatGPT/Claude) with this prompt:<br>
+                        <code style="display: block; padding: 8px; background: white; margin: 5px 0;">
+                        "For each line, generate a primary anchor and 5-8 variations.<br>
+                        Format: url|title|primary|var1, var2, var3"
+                        </code>
+                    </li>
+                    <li>Copy AI output to a .txt file</li>
+                    <li>Import the file using the button above</li>
+                </ol>
             </div>
         </div>
         <?php
