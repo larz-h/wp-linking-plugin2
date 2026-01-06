@@ -86,6 +86,22 @@ class ILM_Target_Pages {
                 </div>
             <?php endif; ?>
 
+            <?php
+            // Show CSV import errors if any
+            $import_errors = get_transient('ilm_import_errors');
+            if (!empty($import_errors)):
+                delete_transient('ilm_import_errors'); // Delete after showing
+            ?>
+                <div class="notice notice-warning is-dismissible">
+                    <p><strong>Import Details:</strong></p>
+                    <ul style="margin-left: 20px; list-style: disc;">
+                        <?php foreach ($import_errors as $error): ?>
+                            <li><?php echo esc_html($error); ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+            <?php endif; ?>
+
             <div class="ilm-admin-layout">
                 <div class="ilm-main-content">
                     <?php if ($editing): ?>
@@ -484,6 +500,11 @@ class ILM_Target_Pages {
         $csv_content = file_get_contents($_FILES['csv_file']['tmp_name']);
 
         $result = $this->db->import_targets_from_csv($csv_content);
+
+        // Store errors in transient for display
+        if (!empty($result['errors'])) {
+            set_transient('ilm_import_errors', $result['errors'], 60);
+        }
 
         $message = sprintf(
             'csv_imported&imported=%d&skipped=%d',

@@ -396,20 +396,29 @@ class ILM_Database {
         $skipped = 0;
         $errors = array();
 
+        // Normalize line endings (handle Windows \r\n, Mac \r, Unix \n)
+        $csv_content = str_replace(array("\r\n", "\r"), "\n", $csv_content);
+
         // Parse CSV
-        $lines = array_map('trim', explode("\n", $csv_content));
+        $lines = explode("\n", $csv_content);
 
         foreach ($lines as $line_num => $line) {
+            $line = trim($line);
+
             // Skip empty lines and comment lines
-            if (empty($line) || substr(trim($line), 0, 1) === '#') {
+            if (empty($line) || substr($line, 0, 1) === '#') {
                 continue;
             }
 
-            // Parse CSV line (handle quoted fields)
-            $fields = str_getcsv($line, '|');
+            // Split by pipe delimiter manually (str_getcsv can be problematic with pipes)
+            $fields = explode('|', $line);
 
             if (count($fields) < 3) {
-                $errors[] = "Line " . ($line_num + 1) . ": Not enough columns";
+                $errors[] = sprintf(
+                    "Line %d skipped: Not enough columns (found %d, need at least 3)",
+                    $line_num + 1,
+                    count($fields)
+                );
                 $skipped++;
                 continue;
             }
@@ -427,7 +436,12 @@ class ILM_Database {
 
             // Validate required fields
             if (empty($url) || empty($primary_anchor)) {
-                $errors[] = "Line " . ($line_num + 1) . ": Missing URL or primary anchor";
+                $errors[] = sprintf(
+                    "Line %d skipped: Missing required field (URL: '%s', Primary: '%s')",
+                    $line_num + 1,
+                    $url,
+                    $primary_anchor
+                );
                 $skipped++;
                 continue;
             }
@@ -445,7 +459,11 @@ class ILM_Database {
             if ($result) {
                 $imported++;
             } else {
-                $errors[] = "Line " . ($line_num + 1) . ": Failed to import";
+                $errors[] = sprintf(
+                    "Line %d failed: Database error when adding target '%s'",
+                    $line_num + 1,
+                    $url
+                );
                 $skipped++;
             }
         }
