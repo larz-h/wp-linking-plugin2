@@ -30,6 +30,21 @@ class ILM_Database {
         $this->targets_table = $wpdb->prefix . 'ilm_targets';
         $this->logs_table = $wpdb->prefix . 'ilm_logs';
         $this->settings_table = $wpdb->prefix . 'ilm_settings';
+
+        // Check and run migrations if needed
+        add_action('admin_init', array($this, 'check_database_version'));
+    }
+
+    /**
+     * Check database version and run migrations if needed
+     */
+    public function check_database_version() {
+        $current_version = get_option('ilm_db_version', '0');
+
+        if (version_compare($current_version, ILM_VERSION, '<')) {
+            // Database needs updating
+            self::create_tables();
+        }
     }
 
     /**
