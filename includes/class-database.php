@@ -195,6 +195,7 @@ class ILM_Database {
         $data = wp_parse_args($data, $defaults);
 
         if (empty($data['url']) || empty($data['primary_anchor'])) {
+            error_log('ILM: Empty URL or primary anchor');
             return false;
         }
 
@@ -216,6 +217,11 @@ class ILM_Database {
             ),
             array('%s', '%s', '%s', '%s', '%d', '%d', '%s')
         );
+
+        if ($result === false) {
+            error_log('ILM Database Error: ' . $this->wpdb->last_error);
+            error_log('ILM Insert failed for URL: ' . $data['url']);
+        }
 
         return $result ? $this->wpdb->insert_id : false;
     }
@@ -474,9 +480,11 @@ class ILM_Database {
             if ($result) {
                 $imported++;
             } else {
+                $db_error = !empty($this->wpdb->last_error) ? $this->wpdb->last_error : 'Unknown error';
                 $errors[] = sprintf(
-                    "Line %d failed: Database error when adding target '%s'",
+                    "Line %d failed: %s (URL: '%s')",
                     $line_num + 1,
+                    $db_error,
                     $url
                 );
                 $skipped++;
