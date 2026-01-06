@@ -85,8 +85,11 @@
                 }
             })
             .then(response => {
-                // Refresh the editor
-                wp.data.dispatch('core/editor').editPost({ content: response.content });
+                // Parse the new content into blocks
+                const blocks = wp.blocks.parse(response.content);
+
+                // Replace the editor blocks with the updated blocks
+                wp.data.dispatch('core/block-editor').resetBlocks(blocks);
 
                 this.setState({
                     loading: false,
